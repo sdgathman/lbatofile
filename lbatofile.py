@@ -17,7 +17,6 @@
 #   with this program; if not, write to the Free Software Foundation, Inc.,
 #   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import sys
 from subprocess import Popen,PIPE
 
 ID_LVM = 0x8e
@@ -168,9 +167,15 @@ def findpart(wd,lba):
       return part,lba - start,Id
   return None
 
-if __name__ == '__main__':
-  wd = sys.argv[1]
-  lba = int(sys.argv[2])
+def usage():
+  print >>sys.stderr,"""\
+Usage:	lbatofile.py /dev/blkdev sector"""
+  sys.exit(2)
+
+def main(argv):
+  if len(argv) != 3: usage()
+  wd = argv[1]
+  lba = int(argv[2])
   print wd,lba,"Whole Disk"
   res = findpart(wd,lba)
   if not res:
@@ -214,3 +219,7 @@ if __name__ == '__main__':
       print "file=%s inum=%d"%(fn,inum)
     else:
       print "<free space>"
+
+if __name__ == '__main__':
+  import sys
+  main(sys.argv)
