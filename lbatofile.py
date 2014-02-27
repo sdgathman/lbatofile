@@ -17,7 +17,6 @@
 #   with this program; if not, write to the Free Software Foundation, Inc.,
 #   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import sys
 from subprocess import Popen,PIPE
 
 ID_LVM = 0x8e
@@ -126,7 +125,8 @@ def findlv(pv,sect):
   for s in m:
     if s.pe1st <= pe <= s.pelst:
       le = s.le1st + pe - s.pe1st
-      return s.lvpath,le * pe_size + peoff
+      return s.lvpath,le * pe_size + peoff,"Logical Volume"
+  return None,sect,"<free space>"
 
 def getmdmap():
   with open('/proc/mdstat','rt') as fp:
@@ -139,7 +139,7 @@ def getmdmap():
 	a = a[1].split()
 	for d in a[2:]:
 	  devs.append(d.split('[')[0])
-	m.append((raid,devs))
+	m.append((raid,' '.join(a[:2]),devs))
     return m
 
 def parse_sfdisk(s):
@@ -165,52 +165,94 @@ def findpart(wd,lba):
   for part,start,sz,Id in parts:
     if Id == ID_EXT: continue
     if start <= lba < start + sz:
-      return part,lba - start,Id
+      return part,lba - start,idtoname(Id)
   return None
 
-if __name__ == '__main__':
-  wd = sys.argv[1]
-  lba = int(sys.argv[2])
-  print wd,lba,"Whole Disk"
-  res = findpart(wd,lba)
-  if not res:
-    print "LBA is outside any partition"
-    sys.exit(1)
-  part,sect,Id = res
-  print part,sect,idtoname(Id)
-  if Id == ID_LVM:
-    bd,sect = findlv(part,sect)
-    # FIXME: problems if LV is snapshot
-  elif Id == ID_LINUX:
-    bd = part
-  else:
-    if Id == ID_RAID:
-      for md,devs in getmdmap():
-	for dev in devs:
-	  if part == "/dev/"+dev:
-	    part = "/dev/"+md
-	    break
-        else: continue
-	break
-    res = findlv(part,sect)
-    if res:
-      print "PV =",part
-      bd,sect = res
-    else:
-      bd = part
-  blksiz = 4096
-  blk = int(sect * 512 / blksiz)
-  p = blkid(bd)
-  try:
-    t = p['TYPE']
-  except:
-    print bd,p
-    raise
-  print "fs=%s block=%d %s"%(bd,blk,t)
-  if t.startswith('ext'):
+class AbstractLayout(object):
+  def checkId(self,attrs): return self
+  def __call__(self,wd,lba): return None
+
+class PartitionLayout(AbstractLayout):
+  def checkId(self,attrs):
+    if not attrs or attrs.get('PTTYPE','') == 'dos': return self
+    return None
+  def __call__(self,wd,lba):
+    return findpart(wd,lba)
+
+class LVM2Layout(AbstractLayout):
+  def checkId(self,attrs):
+    if attrs.get('TYPE','') == 'LVM2_member': return self
+    return None
+  def __call__(self,wd,lba):
+    return findlv(wd,lba)
+    
+class RAIDLayout(AbstractLayout):
+  def checkId(self,attrs):
+    if attrs.get('TYPE','') == 'linux_raid_member': return self
+    return None
+  def __call__(self,part,lba):
+    for md,desc,devs in getmdmap():
+      for dev in devs:
+	if part == "/dev/"+dev:
+	  part = "/dev/"+md
+	  # FIXME: handle raid superblock at beginning of blkdev
+	  return part,lba,desc
+    return None
+
+class EXTLayout(AbstractLayout):
+  def checkId(self,attrs):
+    if attrs.get('TYPE','').startswith('ext'): return self
+    return None
+  def __call__(self,bd,sect):
+    blksiz = 4096
+    blk = int(sect * 512 / blksiz)
+    print "fs=%s block=%d %s"%(bd,blk,'extfs')
     inum = icheck(bd,blk)
     if inum:
       fn = ncheck(bd,inum)
       print "file=%s inum=%d"%(fn,inum)
     else:
       print "<free space>"
+    return None
+
+class LayoutManager(AbstractLayout):
+  def __init__(self):
+    self.layouts = []
+
+  def register(self,layout):
+    if layout not in self.layouts:
+      self.layouts.append(layout)
+
+  def __call__(self,wd,lba):
+    attrs = blkid(wd)
+    #print attrs
+    for layout in self.layouts:
+      if layout.checkId(attrs):
+        #print layout
+        res = layout(wd,lba)
+        if res: return res
+    return None
+
+def usage():
+  print >>sys.stderr,"""\
+Usage:	lbatofile.py /dev/blkdev sector"""
+  sys.exit(2)
+
+def main(argv):
+  if len(argv) != 3: usage()
+  mgr = LayoutManager()
+  mgr.register(PartitionLayout())
+  mgr.register(LVM2Layout())
+  mgr.register(RAIDLayout())
+  mgr.register(EXTLayout())
+  wd = argv[1]
+  lba = int(argv[2])
+  res = wd,lba,"Whole Disk"
+  while res: 
+    part,sect,desc = res
+    print part,sect,desc
+    res = mgr(part,sect)
+
+if __name__ == '__main__':
+  import sys
+  main(sys.argv)
