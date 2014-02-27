@@ -91,6 +91,8 @@ def getpvmap(pv):
       pe1st = int(a[2])
       pelst = int(a[4][:-1])
       seg = Segment(pe1st,pelst)
+    if a[0] == 'VG':
+      vg_name = a[2]
     elif seg and a[0] == 'Logical':
       if a[1] == 'volume':
 	seg.lvpath = a[2]
@@ -110,14 +112,15 @@ def getpvmap(pv):
         lst = a[-1]
 	if lst.lower().endswith('k'):
 	  pe_start = int(float(lst[:-1]))*2
-	  return pe_start,pe_size,segs
+	  return vg_name,pe_start,pe_size,segs
   return None
 
 def findlv(pv,sect):
   res = getpvmap(pv)
   if not res: return None
-  pe_start,pe_size,m = res
+  vg_name,pe_start,pe_size,m = res
   if sect < pe_start:
+    # FIXME: not necessarily an error, unless we can't read metadata
     raise Exception("Bad sector in PV metadata area")
   pe = int((sect - pe_start)/pe_size)
   pebeg = pe * pe_size + pe_start
@@ -126,7 +129,8 @@ def findlv(pv,sect):
     if s.pe1st <= pe <= s.pelst:
       le = s.le1st + pe - s.pe1st
       return s.lvpath,le * pe_size + peoff,"Logical Volume"
-  return None,sect,"<free space>"
+  # FIXME: distinguish between FREE space and unusable sectors
+  return vg_name,sect,"<free space>"
 
 def getmdmap():
   with open('/proc/mdstat','rt') as fp:
@@ -224,6 +228,7 @@ class LayoutManager(AbstractLayout):
       self.layouts.append(layout)
 
   def __call__(self,wd,lba):
+    if not wd.startswith('/'): return None
     attrs = blkid(wd)
     #print attrs
     for layout in self.layouts:
