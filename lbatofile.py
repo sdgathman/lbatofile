@@ -154,9 +154,9 @@ def parse_sfdisk(s):
         d = {}
         for p in desc.split(','):
 	  name,val = p.split('=')
-	  name = name.strip()
-	  if name.lower() == 'id':
-	    d[name] = int(val,16)
+	  name = name.strip().lower()
+	  if name in ('id','type'):
+	    d['id'] = int(val,16)
 	  else:
 	    d[name] = int(val)
 	yield part.strip(),d
@@ -165,7 +165,7 @@ def parse_sfdisk(s):
 
 def findpart(wd,lba):
   s = cmdoutput("sfdisk -d %s"%wd)
-  parts = [ (part,d['start'],d['size'],d['Id']) for part,d in parse_sfdisk(s) ]
+  parts = [ (part,d['start'],d['size'],d['id']) for part,d in parse_sfdisk(s) ]
   for part,start,sz,Id in parts:
     if Id == ID_EXT: continue
     if start <= lba < start + sz:
