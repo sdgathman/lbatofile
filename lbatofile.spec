@@ -1,5 +1,5 @@
 Name:		lbatofile
-Version:	0.2
+Version:	0.3
 Release:	1%{?dist}
 Summary:	Map LBA to file
 
@@ -42,6 +42,10 @@ cp -p lbatofile.py %{buildroot}/%{_sbindir}/lbatofile
 %{_sbindir}/lbatofile
 
 %changelog
+* Thu Dec  3 2015 Stuart Gathman <stuart@gathman.org> 0.3-1
+- Message instead of exception for unsupported raid and errors in LVM metadata
+- Prefix verbose command output with '# '
+
 * Thu Dec  3 2015 Stuart Gathman <stuart@gathman.org> 0.2-1
 - Quote all device names for external cmds 
 - Exception for unsupported raid levels
