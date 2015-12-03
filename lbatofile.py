@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # Identify partition, LV, file containing a sector 
 
-# Copyright (C) 2010,2012 Stuart D. Gathman
+# Copyright (C) 2010,2012,2014,2015 Stuart D. Gathman
 # Shared under GNU Public License v2 or later
 #   This program is free software; you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
