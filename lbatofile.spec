@@ -6,7 +6,7 @@ Summary:	Map LBA to file
 Group:		Applications/System
 License:	GPL2+
 URL:		https://github.com/sdgathman/lbatofile
-Source0:	https://github.com/sdgathman/lbatofile/archive/master.tar.gz
+Source0:	https://github.com/sdgathman/%{name}/archive/%{name}-%{version}.tar.gz
 
 Requires:	python >= 2.6, e2fsprogs, lvm2
 %if 0%{?rhel} == 6
@@ -26,7 +26,7 @@ to interpret the partition tables, LVM metadata, or filesystems containing the
 LBA.
 
 %prep
-%setup -q
+%setup -qn %{name}-%{name}-%{version}
 
 %build
 
@@ -36,6 +36,7 @@ cp -p lbatofile.py %{buildroot}/%{_sbindir}/lbatofile
 
 %files
 %doc README.md LICENSE
+%{_sbindir}/lbatofile
 
 %changelog
 * Wed Dec  2 2015 Stuart Gathman <stuart@gathman.org> 0.1-1
