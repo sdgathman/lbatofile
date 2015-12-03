@@ -249,16 +249,20 @@ class LayoutManager(AbstractLayout):
         if res: return res
     return None
 
-def usage():
+def usage(msg=None):
+  if msg:
+    print >>sys.stderr,msg
   print >>sys.stderr,"""\
-Usage:	lbatofile.py [-v] [-h] /dev/blkdev sector"""
+Usage:	lbatofile.py [-v] /dev/blkdev sector"""
   sys.exit(2)
 
 def main(argv):
-  opts,argv = getopt.getopt(argv[1:],'vh')
+  try:
+    opts,argv = getopt.getopt(argv[1:],'v')
+  except getopt.GetoptError,x:
+    usage(x)
   if len(argv) != 2: usage()
   for opt,val in opts:
-    if opt == '-h': usage()
     if opt == '-v':
       global verbose
       verbose = True
