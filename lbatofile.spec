@@ -7,6 +7,7 @@ Group:		Applications/System
 License:	GPL2+
 URL:		https://github.com/sdgathman/lbatofile
 Source0:	https://github.com/sdgathman/%{name}/archive/%{name}-%{version}.tar.gz
+BuildArch:	noarch
 
 Requires:	python >= 2.6, e2fsprogs, lvm2
 %if 0%{?rhel} == 6
@@ -35,9 +36,17 @@ mkdir -p %{buildroot}/%{_sbindir}
 cp -p lbatofile.py %{buildroot}/%{_sbindir}/lbatofile
 
 %files
+%{!?_licensedir:%global license %%doc}
+%license LICENSE
 %doc README.md LICENSE
 %{_sbindir}/lbatofile
 
 %changelog
+* Thu Dec  3 2015 Stuart Gathman <stuart@gathman.org> 0.2-1
+- Quote all device names for external cmds 
+- Exception for unsupported raid levels
+- Verbose option to show external commands
+- Handle bootable flag
+
 * Wed Dec  2 2015 Stuart Gathman <stuart@gathman.org> 0.1-1
 - Initial package

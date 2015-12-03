@@ -24,6 +24,8 @@ ID_LINUX = 0x83
 ID_EXT = 0x05
 ID_RAID = 0xfd
 
+verbose = False
+
 def idtoname(id):
   if id == ID_LVM: return "Linux LVM"
   if id == ID_LINUX: return "Linux Filesystem"
@@ -41,6 +43,8 @@ class Segment(object):
       self.pe1st,self.pelst,self.lvpath,self.le1st,self.lelst)
 
 def cmdoutput(cmd):
+  if verbose:
+    print cmd
   p = Popen(cmd, shell=True, stdout=PIPE)
   try:
     for ln in p.stdout:
@@ -84,7 +88,7 @@ def getpvmap(pv):
   pe_size = None
   seg = None
   segs = []
-  for ln in cmdoutput("pvdisplay --units k -m %s"%pv):
+  for ln in cmdoutput("pvdisplay --units k -m '%s'"%pv):
     a = ln.strip().split()
     if not a: continue
     if a[0] == 'Physical' and a[4].endswith(':'):
@@ -106,7 +110,7 @@ def getpvmap(pv):
       elif a[3] == 'KiB':
 	pe_size = int(float(a[2])) * 2
   if segs:
-    for ln in cmdoutput("pvs --units k -o+pe_start %s"%pv):
+    for ln in cmdoutput("pvs --units k -o+pe_start '%s'"%pv):
       a = ln.split()
       if a[0] == pv:
         lst = a[-1]
@@ -143,28 +147,32 @@ def getmdmap():
 	a = a[1].split()
 	for d in a[2:]:
 	  devs.append(d.split('[')[0])
-	m.append((raid,' '.join(a[:2]),devs))
+	m.append((raid,a[0],a[1],devs))
     return m
 
 def parse_sfdisk(s):
   for ln in s:
     try:
+      if not ln.strip(): continue
       part,desc = ln.split(':')
       if part.startswith('/dev/'):
         d = {}
         for p in desc.split(','):
-	  name,val = p.split('=')
-	  name = name.strip().lower()
-	  if name in ('id','type'):
-	    d['id'] = int(val,16)
-	  else:
-	    d[name] = int(val)
+          try:
+	    name,val = p.split('=')
+	    name = name.strip().lower()
+	    if name in ('id','type'):
+	      d['id'] = int(val,16)
+	    else:
+	      d[name] = int(val)
+	  except ValueError:
+	    d[p.strip().lower()] = ''
 	yield part.strip(),d
     except ValueError:
       continue
 
 def findpart(wd,lba):
-  s = cmdoutput("sfdisk -d %s"%wd)
+  s = cmdoutput("sfdisk -d '%s'"%wd)
   parts = [ (part,d['start'],d['size'],d['id']) for part,d in parse_sfdisk(s) ]
   for part,start,sz,Id in parts:
     if Id == ID_EXT: continue
@@ -195,12 +203,15 @@ class RAIDLayout(AbstractLayout):
     if attrs.get('TYPE','') == 'linux_raid_member': return self
     return None
   def __call__(self,part,lba):
-    for md,desc,devs in getmdmap():
+    for md,status,raidlev,devs in getmdmap():
       for dev in devs:
 	if part == "/dev/"+dev:
+	  # FIXME: handle striped RAID formats (raid10,raid5,raid0,...)
+	  if raidlev != 'raid1':
+	    raise Exception("%s not supported"%raidlev)
 	  part = "/dev/"+md
 	  # FIXME: handle raid superblock at beginning of blkdev
-	  return part,lba,desc
+	  return part,lba,status+' '+raidlev
     return None
 
 class EXTLayout(AbstractLayout):
@@ -240,18 +251,24 @@ class LayoutManager(AbstractLayout):
 
 def usage():
   print >>sys.stderr,"""\
-Usage:	lbatofile.py /dev/blkdev sector"""
+Usage:	lbatofile.py [-v] [-h] /dev/blkdev sector"""
   sys.exit(2)
 
 def main(argv):
-  if len(argv) != 3: usage()
+  opts,argv = getopt.getopt(argv[1:],'vh')
+  if len(argv) != 2: usage()
+  for opt,val in opts:
+    if opt == '-h': usage()
+    if opt == '-v':
+      global verbose
+      verbose = True
   mgr = LayoutManager()
   mgr.register(PartitionLayout())
   mgr.register(LVM2Layout())
   mgr.register(RAIDLayout())
   mgr.register(EXTLayout())
-  wd = argv[1]
-  lba = int(argv[2])
+  wd = argv[0]
+  lba = int(argv[1])
   res = wd,lba,"Whole Disk"
   while res: 
     part,sect,desc = res
@@ -259,5 +276,5 @@ def main(argv):
     res = mgr(part,sect)
 
 if __name__ == '__main__':
-  import sys
+  import sys,getopt
   main(sys.argv)
