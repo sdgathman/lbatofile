@@ -1,5 +1,5 @@
 Name:		lbatofile
-Version:	0.1
+Version:	0.2
 Release:	1%{?dist}
 Summary:	Map LBA to file
 
