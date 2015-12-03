@@ -44,7 +44,7 @@ class Segment(object):
 
 def cmdoutput(cmd):
   if verbose:
-    print cmd
+    print '# '+cmd
   p = Popen(cmd, shell=True, stdout=PIPE)
   try:
     for ln in p.stdout:
@@ -125,7 +125,7 @@ def findlv(pv,sect):
   vg_name,pe_start,pe_size,m = res
   if sect < pe_start:
     # FIXME: not necessarily an error, unless we can't read metadata
-    raise Exception("Bad sector in PV metadata area")
+    return vg_name,sect,"<meta data>"
   pe = int((sect - pe_start)/pe_size)
   pebeg = pe * pe_size + pe_start
   peoff = sect - pebeg
@@ -206,10 +206,10 @@ class RAIDLayout(AbstractLayout):
     for md,status,raidlev,devs in getmdmap():
       for dev in devs:
 	if part == "/dev/"+dev:
+	  part = "/dev/"+md
 	  # FIXME: handle striped RAID formats (raid10,raid5,raid0,...)
 	  if raidlev != 'raid1':
-	    raise Exception("%s not supported"%raidlev)
-	  part = "/dev/"+md
+	    return md,lba,raidlev+' not supported'
 	  # FIXME: handle raid superblock at beginning of blkdev
 	  return part,lba,status+' '+raidlev
     return None
