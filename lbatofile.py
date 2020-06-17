@@ -16,7 +16,7 @@
 #   You should have received a copy of the GNU General Public License along
 #   with this program; if not, write to the Free Software Foundation, Inc.,
 #   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-
+from __future__ import print_function
 from subprocess import Popen,PIPE
 
 ID_LVM = 0x8e
@@ -44,11 +44,11 @@ class Segment(object):
 
 def cmdoutput(cmd):
   if verbose:
-    print '# '+cmd
+    print('#',cmd)
   p = Popen(cmd, shell=True, stdout=PIPE)
   try:
     for ln in p.stdout:
-      yield ln
+      yield ln.decode()
   finally:
     p.stdout.close()
     p.wait()
@@ -60,7 +60,7 @@ def icheck(fs,blk):
     if not b[0].isdigit(): continue
     if int(b) == blk:
       if i.startswith('<'):
-	return 0
+        return 0
       return int(i)
   raise ValueError('%s: invalid block: %d'%(fs,blk))
 
@@ -99,24 +99,24 @@ def getpvmap(pv):
       vg_name = a[2]
     elif seg and a[0] == 'Logical':
       if a[1] == 'volume':
-	seg.lvpath = a[2]
+        seg.lvpath = a[2]
       elif a[1] == 'extents':
-	seg.le1st = int(a[2])
-	seg.lelst = int(a[4])
-	segs.append(seg)
+        seg.le1st = int(a[2])
+        seg.lelst = int(a[4])
+        segs.append(seg)
     elif a[0] == 'PE' and a[1] == 'Size':
       if a[2] == "(KByte)":
-	pe_size = int(a[3]) * 2
+        pe_size = int(a[3]) * 2
       elif a[3] == 'KiB':
-	pe_size = int(float(a[2])) * 2
+        pe_size = int(float(a[2])) * 2
   if segs:
     for ln in cmdoutput("pvs --units k -o+pe_start '%s'"%pv):
       a = ln.split()
       if a[0] == pv:
         lst = a[-1]
-	if lst.lower().endswith('k'):
-	  pe_start = int(float(lst[:-1]))*2
-	  return vg_name,pe_start,pe_size,segs
+        if lst.lower().endswith('k'):
+          pe_start = int(float(lst[:-1]))*2
+          return vg_name,pe_start,pe_size,segs
   return None
 
 def findlv(pv,sect):
@@ -141,13 +141,13 @@ def getmdmap():
     m = []
     for ln in fp:
       if ln.startswith('md'):
-	a = ln.split(':')
-	raid = a[0].strip()
-	devs = []
-	a = a[1].split()
-	for d in a[2:]:
-	  devs.append(d.split('[')[0])
-	m.append((raid,a[0],a[1],devs))
+        a = ln.split(':')
+        raid = a[0].strip()
+        devs = []
+        a = a[1].split()
+        for d in a[2:]:
+          devs.append(d.split('[')[0])
+        m.append((raid,a[0],a[1],devs))
     return m
 
 def parse_sfdisk(s):
@@ -159,15 +159,15 @@ def parse_sfdisk(s):
         d = {}
         for p in desc.split(','):
           try:
-	    name,val = p.split('=')
-	    name = name.strip().lower()
-	    if name in ('id','type'):
-	      d['id'] = int(val,16)
-	    else:
-	      d[name] = int(val)
-	  except ValueError:
-	    d[p.strip().lower()] = ''
-	yield part.strip(),d
+            name,val = p.split('=')
+            name = name.strip().lower()
+            if name in ('id','type'):
+              d['id'] = int(val,16)
+            else:
+              d[name] = int(val)
+          except ValueError:
+            d[p.strip().lower()] = ''
+        yield part.strip(),d
     except ValueError:
       continue
 
@@ -205,13 +205,13 @@ class RAIDLayout(AbstractLayout):
   def __call__(self,part,lba):
     for md,status,raidlev,devs in getmdmap():
       for dev in devs:
-	if part == "/dev/"+dev:
-	  part = "/dev/"+md
-	  # FIXME: handle striped RAID formats (raid10,raid5,raid0,...)
-	  if raidlev != 'raid1':
-	    return md,lba,raidlev+' not supported'
-	  # FIXME: handle raid superblock at beginning of blkdev
-	  return part,lba,status+' '+raidlev
+        if part == "/dev/"+dev:
+          part = "/dev/"+md
+          # FIXME: handle striped RAID formats (raid10,raid5,raid0,...)
+          if raidlev != 'raid1':
+            return md,lba,raidlev+' not supported'
+          # FIXME: handle raid superblock at beginning of blkdev
+          return part,lba,status+' '+raidlev
     return None
 
 class EXTLayout(AbstractLayout):
@@ -221,13 +221,13 @@ class EXTLayout(AbstractLayout):
   def __call__(self,bd,sect):
     blksiz = 4096
     blk = int(sect * 512 / blksiz)
-    print "fs=%s block=%d %s"%(bd,blk,'extfs')
+    print("fs=%s block=%d %s"%(bd,blk,'extfs'))
     inum = icheck(bd,blk)
     if inum:
       fn = ncheck(bd,inum)
-      print "file=%s inum=%d"%(fn,inum)
+      print("file=%s inum=%d"%(fn,inum))
     else:
-      print "<free space>"
+      print("<free space>")
     return None
 
 class LayoutManager(AbstractLayout):
@@ -241,25 +241,24 @@ class LayoutManager(AbstractLayout):
   def __call__(self,wd,lba):
     if not wd.startswith('/'): return None
     attrs = blkid(wd)
-    #print attrs
+    if verbose: print(attrs)
     for layout in self.layouts:
       if layout.checkId(attrs):
-        #print layout
+        if verbose: print(layout)
         res = layout(wd,lba)
         if res: return res
     return None
 
 def usage(msg=None):
   if msg:
-    print >>sys.stderr,msg
-  print >>sys.stderr,"""\
-Usage:	lbatofile.py [-v] /dev/blkdev sector"""
+    print(msg,file=sys.stderr)
+  print("Usage:	lbatofile.py [-v] /dev/blkdev sector",file=sys.stderr)
   sys.exit(2)
 
 def main(argv):
   try:
     opts,argv = getopt.getopt(argv[1:],'v')
-  except getopt.GetoptError,x:
+  except getopt.GetoptError as x:
     usage(x)
   if len(argv) != 2: usage()
   for opt,val in opts:
@@ -276,7 +275,7 @@ def main(argv):
   res = wd,lba,"Whole Disk"
   while res: 
     part,sect,desc = res
-    print part,sect,desc
+    print(part,sect,desc)
     res = mgr(part,sect)
 
 if __name__ == '__main__':
