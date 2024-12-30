@@ -19,19 +19,22 @@
 from __future__ import print_function
 from subprocess import Popen,PIPE
 
-ID_LVM = 0x8e
-ID_LINUX = 0x83
+ID_LVM = (0x8e, 'E6D6D379-F507-44C2-A23C-238F2A3DF928')
+ID_LINUX = (0x83, '0FC63DAF-8483-4772-8E79-3D69D8477DE4')
 ID_EXT = 0x05
 ID_RAID = 0xfd
 
 verbose = False
 
 def idtoname(id):
-  if id == ID_LVM: return "Linux LVM"
-  if id == ID_LINUX: return "Linux Filesystem"
+  if id in ID_LVM: return "Linux LVM"
+  if id in ID_LINUX: return "Linux Filesystem"
   if id == ID_EXT: return "Extended Partition"
   if id == ID_RAID: return "Software RAID"
-  return hex(id)
+  try:
+    return hex(id)
+  except TypeError:
+    return id
 
 class Segment(object):
   __slots__ = ('pe1st','pelst','lvpath','le1st','lelst')
@@ -162,7 +165,10 @@ def parse_sfdisk(s):
             name,val = p.split('=')
             name = name.strip().lower()
             if name in ('id','type'):
-              d['id'] = int(val,16)
+              try:
+                d['id'] = int(val,16)
+              except:
+                d['id'] = val
             else:
               d[name] = int(val)
           except ValueError:
@@ -177,6 +183,7 @@ def findpart(wd,lba):
   for part,start,sz,Id in parts:
     if Id == ID_EXT: continue
     if start <= lba < start + sz:
+      print(part,Id)
       return part,lba - start,idtoname(Id)
   return None
 
@@ -186,7 +193,7 @@ class AbstractLayout(object):
 
 class PartitionLayout(AbstractLayout):
   def checkId(self,attrs):
-    if not attrs or attrs.get('PTTYPE','') == 'dos': return self
+    if not attrs or attrs.get('PTTYPE','') in ('dos','gpt'): return self
     return None
   def __call__(self,wd,lba):
     return findpart(wd,lba)
