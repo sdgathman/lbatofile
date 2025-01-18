@@ -41,6 +41,8 @@ class Segment(object):
   def __init__(self,pe1st,pelst):
     self.pe1st = pe1st;
     self.pelst = pelst;
+  def size(self):
+    return self.pelst - self.pe1st + 1
   def __str__(self):
     return "Seg:%d-%d:%s:%d-%d" % (
       self.pe1st,self.pelst,self.lvpath,self.le1st,self.lelst)
@@ -89,6 +91,7 @@ def blkid(fs):
 def getpvmap(pv):
   pe_start = 192 * 2
   pe_size = None
+  free_start = 0
   seg = None
   segs = []
   for ln in cmdoutput("pvdisplay --units k -m '%s'"%pv):
@@ -106,6 +109,12 @@ def getpvmap(pv):
       elif a[1] == 'extents':
         seg.le1st = int(a[2])
         seg.lelst = int(a[4])
+        segs.append(seg)
+    elif seg and a[0] == 'FREE':
+        seg.lvpath = a[0]
+        seg.le1st = free_start
+        seg.lelst = free_start + seg.pelst - seg.pe1st
+        free_start += seg.size()
         segs.append(seg)
     elif a[0] == 'PE' and a[1] == 'Size':
       if a[2] == "(KByte)":
@@ -134,6 +143,8 @@ def findlv(pv,sect):
   peoff = sect - pebeg
   for s in m:
     if s.pe1st <= pe <= s.pelst:
+      if s.lvpath == 'FREE':
+        return vg_name,sect,"FREE"
       le = s.le1st + pe - s.pe1st
       return s.lvpath,le * pe_size + peoff,"Logical Volume"
   # FIXME: distinguish between FREE space and unusable sectors
